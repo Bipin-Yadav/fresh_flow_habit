@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1481541931",
+    "project_id": "fresh-flow-habit",
+    "storage_bucket": "fresh-flow-habit.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1481541931:android:77d5004dab18354cdadd6e",
+        "android_client_info": {
+          "package_name": "com.example.fresh_flow_habit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUbfK6BBbAPfDNUnu0HgfRLu2awYDWB6A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
