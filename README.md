@@ -258,12 +258,6 @@ Contributions are welcome! Please follow these simple guidelines:
 
 ---
 
-## 📜 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
 <p align="center">
   Made with ❤️ by <a href="https://github.com/bipinyada28">Bipin Yadav</a>
 </p>
