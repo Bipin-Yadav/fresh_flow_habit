@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/habit_service.dart';
 import '../models/habit.dart';
 import '../widgets/main_navigation_bar.dart';
+import '../services/auth_service.dart';
+import '../models/user.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -11,11 +14,8 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     print("ProfilePage build started");
 
-    final user = FirebaseAuth.instance.currentUser;
-    final name = user?.displayName ?? (user?.email?.split('@')[0] ?? 'User');
-    final initials = (name.isNotEmpty)
-        ? name.trim().split(' ').map((e) => e[0]).take(2).join().toUpperCase()
-        : 'U';
+    final authService = AuthService();
+    final user = authService.currentUser;
     final memberSince = user?.metadata.creationTime;
     final memberSinceStr =
     memberSince != null ? 'Member since ${_monthYear(memberSince)}' : '';
@@ -30,145 +30,160 @@ class ProfilePage extends StatelessWidget {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              CircleAvatar(
-                backgroundColor: const Color(0xFF16C9E6),
-                radius: 40,
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                name,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                memberSinceStr,
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-              StreamBuilder<List<Habit>>(
-                stream: habitService.streamAllHabits(),
-                builder: (context, snapshot) {
-                  print("Profile habits snapshot state: ${snapshot.connectionState}");
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Center(
-                        child: Text(
-                          'Error loading habits: ${snapshot.error}',
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    );
-                  }
-                  final habits = snapshot.data ?? [];
-                  print("Habits loaded count: ${habits.length}");
+          child: StreamBuilder<UserModel?>(
+            stream: authService.streamUserData(),
+            builder: (context, userSnapshot) {
+              final userModel = userSnapshot.data;
+              final name = userModel?.fullName ?? (user?.displayName ?? (user?.email?.split('@')[0] ?? 'User'));
+              final initials = (name.isNotEmpty)
+                  ? name.trim().split(' ').map((e) => e[0]).take(2).join().toUpperCase()
+                  : 'U';
+              final avatarUrl = userModel?.avatarUrl ?? '';
 
-                  final totalStreakDays =
-                  habits.fold(0, (sum, h) => sum + h.currentStreak);
-                  final longestStreak = habits.isEmpty
-                      ? 0
-                      : habits.map((h) => h.bestStreak).reduce((a, b) => a > b ? a : b);
-                  final completed = habits.fold(0, (sum, h) => sum + h.totalDone);
-                  final activeHabits = habits.length;
+              return Column(
+                children: [
+                  const SizedBox(height: 12),
+                  CircleAvatar(
+                    backgroundColor: const Color(0xFF16C9E6),
+                    radius: 40,
+                    backgroundImage: (avatarUrl.isNotEmpty) ? FileImage(File(avatarUrl)) : null,
+                    child: (avatarUrl.isEmpty)
+                        ? Text(
+                            initials,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    name,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    memberSinceStr,
+                    style: const TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  StreamBuilder<List<Habit>>(
+                    stream: habitService.streamAllHabits(),
+                    builder: (context, snapshot) {
+                      print("Profile habits snapshot state: ${snapshot.connectionState}");
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Center(
+                            child: Text(
+                              'Error loading habits: ${snapshot.error}',
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        );
+                      }
+                      final habits = snapshot.data ?? [];
+                      print("Habits loaded count: ${habits.length}");
 
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _StatBlock(
-                          icon: Icons.local_fire_department,
-                          color: Colors.orange,
-                          value: totalStreakDays,
-                          label: "Total Streak Days"),
-                      _StatBlock(
-                          icon: Icons.emoji_events,
-                          color: Colors.yellow[700]!,
-                          value: longestStreak,
-                          label: "Longest Streak"),
-                      _StatBlock(
-                          icon: Icons.check_box,
-                          color: Colors.green,
-                          value: completed,
-                          label: "Habits Completed"),
-                      _StatBlock(
-                          icon: Icons.list_alt,
-                          color: Colors.blue,
-                          value: activeHabits,
-                          label: "Active Habits"),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                      colors: [Color(0xFF16C9E6), Color(0xFF37DCFF)]),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  children: const [
-                    Icon(Icons.emoji_events, color: Colors.white, size: 30),
-                    SizedBox(height: 6),
-                    Text('Habit Hero! 🏆',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18)),
-                    Text("You're on fire! Keep up the amazing work.",
-                        style:
-                        TextStyle(color: Colors.white, fontSize: 14)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-              _ProfileActionButton(
-                label: "Edit Profile",
-                icon: Icons.edit,
-                onTap: () => Navigator.pushNamed(context, '/profile/edit'),
-              ),
-              _ProfileActionButton(
-                label: "Share Progress",
-                icon: Icons.share,
-                onTap: () => Navigator.pushNamed(context, '/share'),
-              ),
-              _ProfileActionButton(
-                label: "Settings",
-                icon: Icons.settings,
-                onTap: () => Navigator.pushNamed(context, '/settings'),
-              ),
-              _ProfileActionButton(
-                label: "Logout",
-                icon: Icons.logout,
-                color: Colors.red,
-                onTap: () async {
-                  await FirebaseAuth.instance.signOut();
-                  Navigator.pushReplacementNamed(context, '/auth');
-                },
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Habit Tracker v1.0.0",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-            ],
+                      final totalStreakDays =
+                      habits.fold(0, (sum, h) => sum + h.currentStreak);
+                      final longestStreak = habits.isEmpty
+                          ? 0
+                          : habits.map((h) => h.bestStreak).reduce((a, b) => a > b ? a : b);
+                      final completed = habits.fold(0, (sum, h) => sum + h.totalDone);
+                      final activeHabits = habits.length;
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _StatBlock(
+                              icon: Icons.local_fire_department,
+                              color: Colors.orange,
+                              value: totalStreakDays,
+                              label: "Total Streak Days"),
+                          _StatBlock(
+                              icon: Icons.emoji_events,
+                              color: Colors.yellow[700]!,
+                              value: longestStreak,
+                              label: "Longest Streak"),
+                          _StatBlock(
+                              icon: Icons.check_box,
+                              color: Colors.green,
+                              value: completed,
+                              label: "Habits Completed"),
+                          _StatBlock(
+                              icon: Icons.list_alt,
+                              color: Colors.blue,
+                              value: activeHabits,
+                              label: "Active Habits"),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF16C9E6), Color(0xFF37DCFF)]),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: const [
+                        Icon(Icons.emoji_events, color: Colors.white, size: 30),
+                        SizedBox(height: 6),
+                        Text('Habit Hero! 🏆',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18)),
+                        Text("You're on fire! Keep up the amazing work.",
+                            style:
+                            TextStyle(color: Colors.white, fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  _ProfileActionButton(
+                    label: "Edit Profile",
+                    icon: Icons.edit,
+                    onTap: () => Navigator.pushNamed(context, '/profile/edit'),
+                  ),
+                  _ProfileActionButton(
+                    label: "Share Progress",
+                    icon: Icons.share,
+                    onTap: () => Navigator.pushNamed(context, '/share'),
+                  ),
+                  _ProfileActionButton(
+                    label: "Settings",
+                    icon: Icons.settings,
+                    onTap: () => Navigator.pushNamed(context, '/settings'),
+                  ),
+                  _ProfileActionButton(
+                    label: "Logout",
+                    icon: Icons.logout,
+                    color: Colors.red,
+                    onTap: () async {
+                      await authService.signOut();
+                      Navigator.pushReplacementNamed(context, '/auth');
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Habit Tracker v1.0.0",
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              );
+            },
           ),
         ),
       ),

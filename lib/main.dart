@@ -5,6 +5,8 @@ import 'package:fresh_flow_habit/screens/notifications.dart';
 import 'package:fresh_flow_habit/screens/share_progress.dart';
 import 'package:share_plus/share_plus.dart';
 import 'firebase_options.dart';
+import 'screens/edit_profile.dart';
+
 
 // Import your new SplashScreen file
 import 'screens/splash.dart';
@@ -20,16 +22,18 @@ import 'screens/profile.dart';
 import 'screens/more.dart';
 import 'screens/settings.dart';
 import 'screens/invite.dart';
-import 'screens/share.dart';
 import 'screens/privacy.dart';
 import 'screens/about.dart';
 import 'screens/help.dart';
+
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationService().init();
   runApp(const MyApp());
 }
 
@@ -83,6 +87,10 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const ShareProgressPage());
             case 'notifications':
               return MaterialPageRoute(builder: (_) => const NotificationsPage());
+            case 'share':
+              return MaterialPageRoute(builder: (_) => ShareProgressPage());
+            case 'profile/edit':
+              return MaterialPageRoute(builder: (_) => EditProfilePage());
             default:
               break;
           }

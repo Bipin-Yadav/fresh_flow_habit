@@ -38,7 +38,7 @@ class HabitService {
     await userHabitsRef.doc(habitId).delete();
   }
 
-  // Mark habit as completed/uncompleted for today
+  // Mark habit as completed/uncompleted for today and dynamically calculate streaks & metrics
   Future<void> toggleHabitCompletion(Habit habit) async {
     final todayStr = _getFormattedDate(DateTime.now());
     List<String> completedDates = List.from(habit.completedDates);
@@ -49,9 +49,76 @@ class HabitService {
       completedDates.add(todayStr);
     }
 
-    // Optional: You would calculate streaks here before saving,
-    // but for initial version just update completedDates
-    await userHabitsRef.doc(habit.id).update({'completedDates': completedDates});
+    // Dynamic calculations
+    final int currentStreak = _calculateCurrentStreak(completedDates);
+    final int bestStreak = _calculateBestStreak(completedDates);
+    final int totalDone = completedDates.length;
+
+    await userHabitsRef.doc(habit.id).update({
+      'completedDates': completedDates,
+      'currentStreak': currentStreak,
+      'bestStreak': bestStreak,
+      'totalDone': totalDone,
+    });
+  }
+
+  // Calculate the current consecutive streak (must end today or yesterday)
+  int _calculateCurrentStreak(List<String> completedDates) {
+    if (completedDates.isEmpty) return 0;
+
+    final today = DateTime.now();
+    final todayStr = _getFormattedDate(today);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final yesterdayStr = _getFormattedDate(yesterday);
+
+    if (!completedDates.contains(todayStr) && !completedDates.contains(yesterdayStr)) {
+      return 0;
+    }
+
+    int currentStreak = 0;
+    DateTime checkDate = completedDates.contains(todayStr) ? today : yesterday;
+
+    while (completedDates.contains(_getFormattedDate(checkDate))) {
+      currentStreak++;
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    return currentStreak;
+  }
+
+  // Calculate the best consecutive streak of all-time (normalized to UTC noon to be timezone/DST-proof)
+  int _calculateBestStreak(List<String> completedDates) {
+    if (completedDates.isEmpty) return 0;
+
+    // Parse and normalize to UTC noon to eliminate timezone/DST rounding bugs
+    final List<DateTime> dates = completedDates.map((d) {
+      final parts = d.split('-');
+      return DateTime.utc(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]), 12, 0, 0);
+    }).toList();
+
+    // Sort in ascending order
+    dates.sort();
+
+    int maxStreak = 1;
+    int currentBlock = 1;
+
+    for (int i = 1; i < dates.length; i++) {
+      final diff = dates[i].difference(dates[i - 1]).inDays;
+      if (diff == 1) {
+        currentBlock++;
+      } else if (diff > 1) {
+        if (currentBlock > maxStreak) {
+          maxStreak = currentBlock;
+        }
+        currentBlock = 1;
+      }
+    }
+
+    if (currentBlock > maxStreak) {
+      maxStreak = currentBlock;
+    }
+
+    return maxStreak;
   }
 
   String _getFormattedDate(DateTime date) {

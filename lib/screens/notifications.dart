@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
 import '../widgets/main_navigation_bar.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -9,7 +11,9 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
-  // Main
+  final NotificationService _notificationService = NotificationService();
+
+  // Main Toggles
   bool allNotifications = true;
 
   // Daily Reminders
@@ -31,6 +35,84 @@ class _NotificationsPageState extends State<NotificationsPage> {
   // Sound & Vibration
   bool sound = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationSettings();
+  }
+
+  // Load saved preferences on entry
+  Future<void> _loadNotificationSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      allNotifications = prefs.getBool('allNotifications') ?? true;
+      morningReminder = prefs.getBool('morningReminder') ?? true;
+      
+      final mHour = prefs.getInt('morningHour') ?? 9;
+      final mMinute = prefs.getInt('morningMinute') ?? 0;
+      morningTime = TimeOfDay(hour: mHour, minute: mMinute);
+
+      eveningReminder = prefs.getBool('eveningReminder') ?? true;
+      final eHour = prefs.getInt('eveningHour') ?? 20;
+      final eMinute = prefs.getInt('eveningMinute') ?? 0;
+      eveningTime = TimeOfDay(hour: eHour, minute: eMinute);
+
+      streakMilestones = prefs.getBool('streakMilestones') ?? true;
+      habitCompletion = prefs.getBool('habitCompletion') ?? true;
+      weeklySummary = prefs.getBool('weeklySummary') ?? false;
+
+      dailyQuotes = prefs.getBool('dailyQuotes') ?? true;
+      encouragement = prefs.getBool('encouragement') ?? true;
+
+      sound = prefs.getBool('sound') ?? true;
+    });
+  }
+
+  // Helper method to save single configuration and sync repeating system alarms
+  Future<void> _saveSetting(String key, dynamic value) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (value is bool) {
+      await prefs.setBool(key, value);
+    } else if (value is int) {
+      await prefs.setInt(key, value);
+    }
+
+    // Recalculate alarm schedules in the native background OS thread
+    await _syncSystemAlarms();
+  }
+
+  // Coordinates with NotificationService to cancel/re-schedule repeating daily notifications
+  Future<void> _syncSystemAlarms() async {
+    // 1. Clear previous alarms first
+    await _notificationService.cancelNotification(100); // 100 representing Morning ID
+    await _notificationService.cancelNotification(200); // 200 representing Evening ID
+
+    // If master switch is turned off, do not schedule any alarms
+    if (!allNotifications) return;
+
+    // 2. Schedule morning alarms if active
+    if (morningReminder) {
+      await _notificationService.scheduleDailyNotification(
+        id: 100,
+        title: "Morning Habit Check! 🌅",
+        body: "Start your day strong by reviewing and checking off your active habits!",
+        hour: morningTime.hour,
+        minute: morningTime.minute,
+      );
+    }
+
+    // 3. Schedule evening alarms if active
+    if (eveningReminder) {
+      await _notificationService.scheduleDailyNotification(
+        id: 200,
+        title: "Evening Habit Review! 🌌",
+        body: "Reflect on today's routines and secure your daily streaks!",
+        hour: eveningTime.hour,
+        minute: eveningTime.minute,
+      );
+    }
+  }
+
   // Helper for picking times
   Future<void> _pickTime(BuildContext context, bool isMorning) async {
     final initialTime = isMorning ? morningTime : eveningTime;
@@ -38,6 +120,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       context: context,
       initialTime: initialTime,
     );
+    
     if (picked != null) {
       setState(() {
         if (isMorning) {
@@ -46,6 +129,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
           eveningTime = picked;
         }
       });
+
+      // Save picked time settings and trigger re-scheduling
+      if (isMorning) {
+        await _saveSetting('morningHour', picked.hour);
+        await _saveSetting('morningMinute', picked.minute);
+      } else {
+        await _saveSetting('eveningHour', picked.hour);
+        await _saveSetting('eveningMinute', picked.minute);
+      }
     }
   }
 
@@ -88,7 +180,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   title: const Text("All Notifications", style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: const Text("Turn all notifications on/off"),
                   value: allNotifications,
-                  onChanged: (val) => setState(() => allNotifications = val),
+                  onChanged: (val) async {
+                    setState(() => allNotifications = val);
+                    await _saveSetting('allNotifications', val);
+                  },
                   activeColor: const Color(0xFF16C9E6),
                 ),
               ),
@@ -105,10 +200,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       title: const Text("Morning Reminder", style: TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: const Text("Start your day with habits"),
                       value: morningReminder,
-                      onChanged: (val) => setState(() => morningReminder = val),
+                      onChanged: (val) async {
+                        setState(() => morningReminder = val);
+                        await _saveSetting('morningReminder', val);
+                      },
                       activeColor: const Color(0xFF16C9E6),
                     ),
-                    // Time picker
                     Padding(
                       padding: const EdgeInsets.only(left: 20, right: 20, bottom: 10),
                       child: GestureDetector(
@@ -143,7 +240,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       title: const Text("Evening Reminder", style: TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: const Text("Review your daily progress"),
                       value: eveningReminder,
-                      onChanged: (val) => setState(() => eveningReminder = val),
+                      onChanged: (val) async {
+                        setState(() => eveningReminder = val);
+                        await _saveSetting('eveningReminder', val);
+                      },
                       activeColor: const Color(0xFF16C9E6),
                     ),
                     Padding(
@@ -175,36 +275,54 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   label: "Streak Milestones",
                   subtitle: "Celebrate when you reach 7, 30, 100 days",
                   value: streakMilestones,
-                  onChanged: (val) => setState(() => streakMilestones = val)),
+                  onChanged: (val) async {
+                    setState(() => streakMilestones = val);
+                    await _saveSetting('streakMilestones', val);
+                  }),
               _NotiSwitch(
                   label: "Habit Completion",
                   subtitle: "Get notified when you complete all habits",
                   value: habitCompletion,
-                  onChanged: (val) => setState(() => habitCompletion = val)),
+                  onChanged: (val) async {
+                    setState(() => habitCompletion = val);
+                    await _saveSetting('habitCompletion', val);
+                  }),
               _NotiSwitch(
                   label: "Weekly Summary",
                   subtitle: "Sunday summary of your week",
                   value: weeklySummary,
-                  onChanged: (val) => setState(() => weeklySummary = val)),
+                  onChanged: (val) async {
+                    setState(() => weeklySummary = val);
+                    await _saveSetting('weeklySummary', val);
+                  }),
               const SizedBox(height: 12),
               _SectionTitle(label: "Motivation", icon: Icons.mood),
               _NotiSwitch(
                   label: "Daily Quotes",
                   subtitle: "Inspirational quotes to keep you going",
                   value: dailyQuotes,
-                  onChanged: (val) => setState(() => dailyQuotes = val)),
+                  onChanged: (val) async {
+                    setState(() => dailyQuotes = val);
+                    await _saveSetting('dailyQuotes', val);
+                  }),
               _NotiSwitch(
                   label: "Encouragement",
                   subtitle: "Motivational messages when you miss a day",
                   value: encouragement,
-                  onChanged: (val) => setState(() => encouragement = val)),
+                  onChanged: (val) async {
+                    setState(() => encouragement = val);
+                    await _saveSetting('encouragement', val);
+                  }),
               const SizedBox(height: 12),
               _SectionTitle(label: "Sound & Vibration", icon: Icons.volume_up),
               _NotiSwitch(
                   label: "Sound",
                   subtitle: "Play sound for notifications",
                   value: sound,
-                  onChanged: (val) => setState(() => sound = val)),
+                  onChanged: (val) async {
+                    setState(() => sound = val);
+                    await _saveSetting('sound', val);
+                  }),
               const SizedBox(height: 28),
             ],
           ),

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -9,7 +10,7 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin {
-  final _auth = FirebaseAuth.instance;
+  final AuthService _authService = AuthService();
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -35,12 +36,16 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     setState(() => isLoading = true);
 
     try {
-      await _auth.signInWithEmailAndPassword(
-          email: _emailController.text.trim(), password: _passwordController.text);
+      await _authService.signInWithEmail(
+          _emailController.text.trim(), _passwordController.text);
       Navigator.pushReplacementNamed(context, '/dashboard');
     } on FirebaseAuthException catch (e) {
       setState(() {
         errorMessage = e.message ?? "Login failed";
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
       });
     } finally {
       setState(() => isLoading = false);
@@ -51,15 +56,21 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     setState(() => isLoading = true);
 
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(), password: _passwordController.text);
-
-      // Optional: Save additional user info (Full name, phone) to Firestore here
+      await _authService.signUpWithEmail(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        fullName: _fullNameController.text.trim(),
+        phone: _phoneController.text.trim(),
+      );
 
       Navigator.pushReplacementNamed(context, '/dashboard');
     } on FirebaseAuthException catch (e) {
       setState(() {
         errorMessage = e.message ?? "Signup failed";
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
       });
     } finally {
       setState(() => isLoading = false);
@@ -70,11 +81,15 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     setState(() => isLoading = true);
 
     try {
-      await _auth.signInAnonymously();
+      await _authService.signInAnonymously();
       Navigator.pushReplacementNamed(context, '/dashboard');
     } on FirebaseAuthException catch (e) {
       setState(() {
         errorMessage = e.message ?? "Guest login failed";
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
       });
     } finally {
       setState(() => isLoading = false);

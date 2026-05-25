@@ -46,27 +46,19 @@ class HabitsPage extends StatelessWidget {
         backgroundColor: const Color(0xFF16C9E6),
       ),
       bottomNavigationBar: MainNavigationBar(
-        selectedIndex: 2, // 0: Dashboard, 1: Habits, 2: Profile, 3: More
+        selectedIndex: 1, // 0: Dashboard, 1: Habits, 2: Profile, 3: More
         onItemTapped: (index) {
           String route = '';
           switch(index) {
-            case 0:
-              route = '/dashboard';
-              break;
-            case 1:
-              route = '/habits';
-              break;
-            case 2:
-              route = '/profile';
-              break;
-            case 3:
-              route = '/more'; // Add this route when more screen exists
-              break;
+            case 0: route = '/dashboard'; break;
+            case 1: route = '/habits'; break;
+            case 2: route = '/profile'; break;
+            case 3: route = '/more'; break;
           }
           Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
         },
-
       ),
+
 
     );
   }
